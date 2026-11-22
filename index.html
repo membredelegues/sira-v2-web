@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="fr">
+	<head><script>fetch('version.txt?t='+Date.now()).then(r=>r.text()).then(v=>{v=v.trim();if(v&&v!=='0f57fa4-1795345858'&&!location.search.includes(v))location.replace('./?v='+v+(location.search?'&'+location.search.slice(1):'')+location.hash)}).catch(()=>{})</script><script>window.SIRA_PCK='sira-0f57fa4-1795345858.pck';window.SIRA_VILLE='sira-ville-bae59d4d7e.pck';window.SIRA_CAMP='sira-camp-bae59d4d7e.pck';window.SIRA_TENTE='sira-tente-bae59d4d7e.pck';window.SIRA_CAMP_LEGER='sira-camp-bae59d4d7e-leger.pck';window.SIRA_VILLE_LEGER='sira-ville-bae59d4d7e-leger.pck';window.SIRA_EDITEUR='sira-editeur-1cd4cc588e.pck';window.SIRA_TAILLES={'sira-tente-bae59d4d7e.pck':6041660,'sira-ville-bae59d4d7e.pck':66589692,'sira-camp-bae59d4d7e.pck':18386496,'sira-camp-bae59d4d7e-leger.pck':15901872,'sira-ville-bae59d4d7e-leger.pck':59398796};window.SIRA_POIDS={'sira-moteur-eecd8de32f.wasm':8133380}</script>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Sira v2</title>
+		<style>
+html, body, #canvas { margin: 0; padding: 0; border: 0; }
+body { color: white; background-color: #2a1408; overflow: hidden; touch-action: none; }
+#canvas { display: block; }
+#canvas:focus { outline: none; }
+/* Écran d'attente : s'affiche tout de suite, avant le moteur (tools/web/shell.html). */
+#status {
+	position: absolute; inset: 0; display: flex; flex-direction: column;
+	justify-content: center; align-items: center; gap: 3vh;
+	background: radial-gradient(ellipse at 50% 35%, #a8431c 0%, #5a2410 55%, #2a1408 100%);
+	font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif; text-align: center;
+}
+/* Image d'accueil (yahya, 2026-11-19, faite sur Scenario) : Adam et Plume devant le campement du réveil.
+   Fichier à part (accueil.webp, moins de 70 Ko, copié par tools/publier-web-cloud.sh) : l'écran SIRA
+   s'affiche tout de suite sans l'attendre, l'image arrive en fondu ; si elle manque, on garde le dégradé. */
+#sira-image {
+	position: absolute; inset: 0; z-index: 0; opacity: 0; transition: opacity .6s ease;
+	background: linear-gradient(rgba(42,20,8,.30), rgba(42,20,8,.10) 35%, rgba(42,20,8,.62)), url(accueil.webp) center / cover no-repeat;
+}
+#sira-image.pret { opacity: 1; }
+#status > :not(#sira-image) { position: relative; z-index: 1; }
+#sira-texte, #sira-note { text-shadow: 0 .08em .25em rgba(42,20,8,.9), 0 0 .5em rgba(42,20,8,.7); }
+#sira-titre {
+	font-size: min(22vw, 26vh); font-weight: 900; letter-spacing: .04em; color: #ffd84a; line-height: 1;
+	text-shadow: 0 .06em 0 #5a2f0c, .04em 0 0 #5a2f0c, -.04em 0 0 #5a2f0c, 0 -.04em 0 #5a2f0c, 0 .12em .1em rgba(0,0,0,.35);
+}
+#sira-sous {
+	background: #d6452b; border: .25em solid #5a2f0c; border-radius: 1em; padding: .35em 1.1em;
+	font-weight: 800; font-size: min(3.6vw, 3.2vh); letter-spacing: .03em;
+}
+#sira-barre { width: min(70vw, 520px); height: 22px; border-radius: 12px; background: #3a1a0a; border: 3px solid #5a2f0c; overflow: hidden; }
+#sira-plein { height: 100%; width: 0%; background: linear-gradient(#ffe27a, #f5b921); border-radius: 9px; transition: width .25s linear; }
+#sira-texte { font-size: min(4.2vw, 3.4vh); font-weight: 700; color: #fff3d6; min-height: 1.3em; }
+#sira-note { font-size: min(3.4vw, 2.8vh); color: #ffcf9a; min-height: 1.3em; padding: 0 1em; }
+/* TOURNE-CSS-DEBUT : téléphone tenu debout (yahya, 2026-11-19 : « tout est petit »). Le jeu est fait
+   pour l'écran couché : on propose de tourner l'écran (plein écran + paysage), sans jamais bloquer. */
+#sira-tourne {
+	position: fixed; inset: 0; z-index: 30; display: none; flex-direction: column;
+	justify-content: center; align-items: center; gap: 4vh; padding: 0 6vw;
+	background: radial-gradient(ellipse at 50% 35%, #a8431c 0%, #5a2410 55%, #2a1408 100%);
+	font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif; text-align: center;
+}
+#sira-tel { width: 22vw; height: 38vw; border: 1.6vw solid #fff3d6; border-radius: 4vw; animation: sira-tourne 2.4s ease-in-out infinite; }
+@keyframes sira-tourne { 0%, 25% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+#sira-tourne-titre { font-size: 7vw; font-weight: 900; color: #ffd84a; text-shadow: 0 .08em 0 #5a2f0c; line-height: 1.15; }
+#sira-tourne-note { font-size: 4.6vw; font-weight: 700; color: #fff3d6; line-height: 1.3; }
+#sira-tourne-oui {
+	font: inherit; font-size: 6vw; font-weight: 900; color: #5a2f0c; background: linear-gradient(#ffe27a, #f5b921);
+	border: .7vw solid #5a2f0c; border-bottom-width: 1.8vw; border-radius: 5vw; padding: 3.5vw 8vw; min-height: 16vw;
+}
+#sira-tourne-non { font: inherit; font-size: 4.6vw; font-weight: 700; color: #ffcf9a; background: none; border: 0; text-decoration: underline; padding: 4vw 6vw; min-height: 14vw; }
+/* TOURNE-CSS-FIN */
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	</head>
+	<body>
+		<canvas id="canvas">Ton navigateur ne peut pas afficher le jeu.</canvas>
+		<div id="status">
+			<div id="sira-image"></div>
+			<script>(function () { var i = new Image(); i.onload = function () { document.getElementById('sira-image').className = 'pret'; }; i.src = 'accueil.webp'; })();</script>
+			<div id="sira-titre">SIRA</div>
+			<div id="sira-sous">UN VOYAGE AU TEMPS DU PROPHÈTE (SAW)</div>
+			<div id="sira-barre"><div id="sira-plein"></div></div>
+			<div id="sira-texte">Chargement…</div>
+			<div id="sira-note"></div>
+		</div>
+
+		<!-- TOURNE-HTML-DEBUT -->
+		<div id="sira-tourne">
+			<div id="sira-tel"></div>
+			<div id="sira-tourne-titre">C'est bien plus grand<br>avec l'écran couché !</div>
+			<button id="sira-tourne-oui">TOURNER L'ÉCRAN</button>
+			<div id="sira-tourne-note"></div>
+			<button id="sira-tourne-non">Jouer comme ça</button>
+		</div>
+		<script>
+(function () {
+	var tactile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+	// Téléphone seulement (petit côté sous 600) : la tablette ne change pas.
+	if (!tactile || Math.min(screen.width, screen.height) >= 600) return;
+	var boite = document.getElementById('sira-tourne');
+	var note = document.getElementById('sira-tourne-note');
+	var passe = false;
+	function debout() { return window.innerHeight > window.innerWidth; }
+	function maj() { boite.style.display = (debout() && !passe) ? 'flex' : 'none'; }
+	document.getElementById('sira-tourne-oui').addEventListener('click', function () {
+		var el = document.documentElement;
+		var plein = el.requestFullscreen || el.webkitRequestFullscreen;
+		var p;
+		try { p = plein ? Promise.resolve(plein.call(el)) : Promise.reject(new Error('pas de plein écran')); } catch (e) { p = Promise.reject(e); }
+		p.then(function () { return screen.orientation.lock('landscape'); }).then(function () {
+			console.log('SIRA écran couché : OK');
+		}).catch(function (e) {
+			// iPhone, ou navigateur qui refuse : l'enfant tourne le téléphone lui-même.
+			console.log('SIRA écran couché refusé : ' + e);
+			note.textContent = 'Tourne ton téléphone sur le côté.';
+		});
+	});
+	document.getElementById('sira-tourne-non').addEventListener('click', function () { passe = true; maj(); });
+	window.addEventListener('resize', maj);
+	window.addEventListener('orientationchange', function () { setTimeout(maj, 300); });
+	maj();
+}());
+		</script>
+		<!-- TOURNE-HTML-FIN -->
+
+		<script src="sira-moteur-eecd8de32f.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"sira-moteur-eecd8de32f","experimentalVK":false,"fileSizes":{"sira-0f57fa4-1795345858.pck":3447300,"sira-moteur-eecd8de32f.wasm":31937358},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+// Petit départ : la tente du réveil fait partie des fichiers de départ (scripts/paquets.gd).
+if (window.SIRA_TENTE && window.SIRA_TAILLES) GODOT_CONFIG.fileSizes[window.SIRA_TENTE] = window.SIRA_TAILLES[window.SIRA_TENTE];
+
+/* Qualité automatique (yahya, 2026-11-18 : « une version pour connexion faible ou processeur
+ * faible, en réglage automatique »). On regarde l'appareil AVANT de lancer le jeu : puce
+ * graphique, mémoire, cœurs, connexion. Le jeu (scripts/qualite.gd) part de ce niveau
+ * (0 Bas, 1 Moyen, 2 Haut) puis se corrige tout seul en mesurant les images par seconde.
+ * Essais : ?qualite=bas|moyen|haut|auto, ?leger=1|0. Voir docs/qualite-auto.md. */
+(function () {
+	const n = navigator, k = n.connection || {};
+	const a = { gpu: '', mem: n.deviceMemory || 0, coeurs: n.hardwareConcurrency || 0, tactile: (n.maxTouchPoints || 0) > 0,
+		reseau: k.effectiveType || '', debit: k.downlink || 0, eco: !!k.saveData, force: '', niveau: 2, faible: false };
+	try {
+		const c = document.createElement('canvas');
+		const g = c.getContext('webgl2') || c.getContext('webgl');
+		const e = g.getExtension('WEBGL_debug_renderer_info');
+		a.gpu = String(e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER));
+		const p = g.getExtension('WEBGL_lose_context');
+		if (p) p.loseContext();
+	} catch (e) { /* inconnu : niveau moyen */ }
+	/* RÈGLE yahya (2026-11-18) : un appareil puissant ne doit jamais tomber en Basse par erreur.
+	 * On ne devine donc PAS le niveau d'après le modèle de la puce : le jeu part en Haute et ne
+	 * descend que s'il mesure que ça rame (scripts/qualite.gd). Seule exception : un appareil
+	 * faible à coup sûr (pas de puce graphique, ou 2 Go de mémoire) part en Moyenne. */
+	a.faible = /swiftshader|llvmpipe|software|microsoft basic/i.test(a.gpu) || (a.mem > 0 && a.mem <= 2);
+	a.niveau = a.faible ? 1 : 2;
+	const q = new URLSearchParams(location.search);
+	if (q.get('qualite')) a.force = q.get('qualite');
+	a.leger_force = q.get('leger') || '';
+	window.siraAppareil = a;
+	console.log('SIRA appareil ' + JSON.stringify(a));
+}());
+
+/* Nombre de points de l'image (2026-11-20, mesuré sur le PC de yahya : écran 4K réglé à 150 %,
+ * GTX 1050 Ti). Le moteur lit window.devicePixelRatio pour choisir la taille de l'image : on lui
+ * donne la valeur que le jeu demande (scripts/qualite.gd appelle window.siraPoints) au lieu de
+ * réduire la 3D seule, car la copie « 3D réduite → écran » coûte 40 ms par image dans Chrome
+ * sur Windows (16 images/s sur l'écran titre, 60 sans elle). Jamais moins d'1 point par point
+ * d'écran normal sur PC (donc jamais pixelisé). Au départ, un grand écran de PC est plafonné à
+ * 4,2 millions de points (la Haute), en attendant que le jeu choisisse. */
+(function () {
+	const vrai = window.devicePixelRatio || 1;
+	let pts = vrai;
+	try {
+		Object.defineProperty(window, 'devicePixelRatio', { get: function () { return pts; }, configurable: true });
+	} catch (e) { console.log('SIRA points : réglage impossible ' + e); return; }
+	window.siraVraiDpr = vrai;
+	window.siraPoints = function (p) {
+		p = Number(p);
+		pts = (p > 0) ? Math.max(Math.min(vrai, 1), Math.min(vrai, p)) : vrai;
+		return pts;
+	};
+	const tactile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+	const css = window.innerWidth * window.innerHeight;
+	if (!tactile && css > 0) window.siraPoints(Math.max(1, Math.sqrt(4.2e6 / css)));
+	console.log('SIRA points ' + vrai + ' → ' + pts);
+}());
+
+/* BOÎTE NOIRE (2026-11-21). yahya dit que ça rame, et les mesures prises dans une fenêtre pilotée
+ * à distance étaient fausses : Chrome ne rafraîchit une fenêtre qui n'est pas devant qu'une ou
+ * deux fois par seconde (même un simple carré de couleur), donc on y lisait 2 à 6 images/s quel
+ * que soit le jeu. Ici le jeu note lui-même ce que le JOUEUR obtient pendant qu'il joue : toutes
+ * les 3 s, images/s, pire à-coup, temps de calcul et temps de la carte graphique par image, gestes
+ * du joueur, et ce que le jeu affiche (scripts/qualite.gd remplit window.siraCtx). Gardé sur
+ * l'appareil (6 dernières parties), jamais envoyé : on le relit avec window.siraBoite() ou sur la
+ * page ?pause (qui ne lance pas le moteur). Ligne = [seconde, images, pire ms, calcul ms,
+ * carte graphique ms (-1 = inconnu), gestes, devant (2) / visible (1), contexte]. Le contexte finit
+ * par « a » = ms par image passées à attendre une réponse de la carte graphique. */
+(function () {
+	const CLE = 'sira-boite';
+	let tout = [];
+	try { tout = JSON.parse(localStorage.getItem(CLE) || '[]'); } catch (e) { tout = []; }
+	if (!Array.isArray(tout)) tout = [];
+	window.siraBoite = function () { return tout; };
+	window.siraBoiteNote = function () { /* rien */ };
+	if (/(^|[?&])pause(&|$)/.test(location.search)) return;
+	const t0 = performance.now();
+	const s = { v: String(window.SIRA_PCK || ''), d: Date.now(), dpr: window.siraVraiDpr || 1, e: [window.innerWidth, window.innerHeight], n: {}, m: [] };
+	tout.push(s);
+	/* Plusieurs onglets (ou un rechargement) écrivent la même réserve : on relit ce qui s'y trouve et
+	 * on n'y remplace que SA partie, sinon la dernière écriture efface les parties des autres. */
+	function garder() {
+		try {
+			let la = [];
+			try { la = JSON.parse(localStorage.getItem(CLE) || '[]'); } catch (e) { la = []; }
+			if (!Array.isArray(la)) la = [];
+			la = la.filter(function (x) { return x && x.d !== s.d; });
+			la.push(s);
+			la.sort(function (x, y) { return x.d - y.d; });
+			while (la.length > 6) la.shift();
+			tout = la;
+			localStorage.setItem(CLE, JSON.stringify(la));
+		} catch (e) { /* plein : tant pis */ }
+	}
+	window.siraBoiteNote = function (quoi) { if (!(quoi in s.n)) { s.n[quoi] = Math.round((performance.now() - t0) / 100) / 10; garder(); } };
+
+	// Temps de calcul du jeu par image : tout ce que le moteur fait dans son tour d'image.
+	const vraiRaf = window.requestAnimationFrame.bind(window);
+	let calcul = 0, tours = 0, gl = null, ext = null, attente = null, gpu = 0, gpuN = 0, gpuOk = true;
+	try {
+		const vraiCtx = HTMLCanvasElement.prototype.getContext;
+		HTMLCanvasElement.prototype.getContext = function (type) {
+			const c = vraiCtx.apply(this, arguments);
+			if (c && type === 'webgl2' && !gl && this.id === 'canvas') { gl = c; brancher(c); }
+			return c;
+		};
+	} catch (e) { gpuOk = false; }
+	/* Questions posées à la carte graphique (2026-11-21). À chaque image le moteur demande « quel
+	 * cadre est branché ? » et « le découpage est-il allumé ? ». Dans Chrome, une telle question arrête
+	 * le jeu jusqu'à ce que tout le dessin déjà envoyé soit traité (environ 10 ms chacune, mesuré
+	 * dans le Chrome de yahya). Le jeu connaît déjà la réponse : on la retient ici quand il change
+	 * ces réglages, et on répond sans rien demander. ?questions remet l'ancien fonctionnement.
+	 * On chronomètre aussi ce qui reste d'attente (s.m : voir « attente »). */
+	let attenteMs = 0;
+	function brancher(g) {
+		const direct = /(^|[?&])questions(&|$)/.test(location.search);
+		const CADRE = 0x8CA6, DECOUPE = 0x0C11, LECTURE = 0x8CAA;
+		let cadre = null, lecture = null, decoupe = false, sur = true;
+		const vBind = g.bindFramebuffer, vEn = g.enable, vDis = g.disable, vDel = g.deleteFramebuffer, vGet = g.getParameter;
+		g.bindFramebuffer = function (cible, f) {
+			if (cible === 0x8D40) { cadre = f; lecture = f; } else if (cible === 0x8CA9) cadre = f; else if (cible === 0x8CA8) lecture = f;
+			return vBind.call(this, cible, f);
+		};
+		g.enable = function (c) { if (c === DECOUPE) decoupe = true; return vEn.call(this, c); };
+		g.disable = function (c) { if (c === DECOUPE) decoupe = false; return vDis.call(this, c); };
+		g.deleteFramebuffer = function (f) { if (f && f === cadre) cadre = null; if (f && f === lecture) lecture = null; return vDel.call(this, f); };
+		g.getParameter = function (p) {
+			if (!direct && sur) {
+				if (p === CADRE) return cadre;
+				if (p === LECTURE) return lecture;
+				if (p === DECOUPE) return decoupe;
+			}
+			const a = performance.now();
+			const r = vGet.call(this, p);
+			attenteMs += performance.now() - a;
+			return r;
+		};
+		['getError', 'readPixels', 'finish', 'checkFramebufferStatus', 'getProgramParameter', 'getShaderParameter', 'clientWaitSync', 'getBufferSubData'].forEach(function (n) {
+			const v = g[n];
+			if (typeof v !== 'function') return;
+			g[n] = function () {
+				const a = performance.now();
+				try { return v.apply(this, arguments); } finally { attenteMs += performance.now() - a; }
+			};
+		});
+		// Image perdue puis retrouvée (carte graphique réinitialisée) : on ne devine plus rien.
+		try { g.canvas.addEventListener('webglcontextlost', function () { sur = false; }); } catch (e) { /* rien */ }
+	}
+	function lireGpu() {
+		if (!attente) return;
+		try {
+			if (!gl.getQueryParameter(attente, gl.QUERY_RESULT_AVAILABLE)) return;
+			const perdu = gl.getParameter(ext.GPU_DISJOINT_EXT);
+			if (!perdu) { gpu += gl.getQueryParameter(attente, gl.QUERY_RESULT) / 1e6; gpuN++; }
+			gl.deleteQuery(attente);
+		} catch (e) { gpuOk = false; }
+		attente = null;
+	}
+	window.requestAnimationFrame = function (cb) {
+		return vraiRaf(function (ts) {
+			let q = null;
+			// Une image sur 20 : la carte graphique chronomètre elle-même le dessin de cette image.
+			if (gpuOk && gl && (tours % 20) === 0) {
+				try {
+					if (!ext) ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+					if (!ext) gpuOk = false;
+					else { lireGpu(); if (!attente) { q = gl.createQuery(); gl.beginQuery(ext.TIME_ELAPSED_EXT, q); } }
+				} catch (e) { gpuOk = false; q = null; }
+			}
+			const a = performance.now();
+			try { cb(ts); } finally {
+				calcul += performance.now() - a;
+				tours++;
+				if (q) { try { gl.endQuery(ext.TIME_ELAPSED_EXT); attente = q; } catch (e) { gpuOk = false; } }
+			}
+		});
+	};
+
+	let images = 0, pire = 0, avant = performance.now(), gestes = 0, debut = avant, sauve = avant;
+	(function image(t) {
+		const maintenant = performance.now();
+		images++;
+		pire = Math.max(pire, maintenant - avant);
+		avant = maintenant;
+		vraiRaf(image);
+	}());
+	['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel'].forEach(function (ev) {
+		window.addEventListener(ev, function (e) { if (e.isTrusted) gestes++; }, { capture: true, passive: true });
+	});
+	function ligne() {
+		const maintenant = performance.now();
+		const duree = (maintenant - debut) / 1000;
+		if (document.visibilityState === 'visible' && duree > 0.5) {
+			s.m.push([
+				Math.round((maintenant - t0) / 1000),
+				Math.round(images / duree * 10) / 10,
+				Math.round(pire),
+				tours ? Math.round(calcul / tours * 10) / 10 : 0,
+				gpuN ? Math.round(gpu / gpuN * 10) / 10 : -1,
+				gestes,
+				document.hasFocus() ? 2 : 1,
+				String(window.siraCtx || '') + '|a' + (tours ? Math.round(attenteMs / tours * 10) / 10 : 0),
+			]);
+			if (s.m.length > 600) s.m.splice(0, 100);
+		}
+		images = 0; pire = 0; calcul = 0; tours = 0; gpu = 0; gpuN = 0; gestes = 0; attenteMs = 0;
+		debut = maintenant; avant = maintenant;
+		if (maintenant - sauve > 15000 || s.m.length <= 1) { sauve = maintenant; garder(); }
+	}
+	setInterval(ligne, 3000);
+	document.addEventListener('visibilitychange', function () { ligne(); garder(); });
+	window.addEventListener('pagehide', garder);
+}());
+
+/* Téléchargement solide (yahya, 2026-11-17 : barre figée à 60 % en 5G faible).
+ * Le moteur Godot télécharge ses fichiers avec fetch() et n'a ni délai ni reprise : si le
+ * réseau coupe, la barre reste figée pour toujours. Ici fetch() est remplacé, pour les gros
+ * fichiers (.wasm, .pck), par un téléchargement qui surveille l'arrivée des octets et
+ * REPREND là où il s'était arrêté (en-tête Range), autant de fois qu'il faut.
+ * window.SIRA_POIDS = { nom: octets réellement transportés } (le .wasm voyage compressé),
+ * window.SIRA_TAILLES = { nom: taille } pour les paquets hors GODOT_CONFIG (2e paquet). */
+(function () {
+	const vraiFetch = window.fetch.bind(window);
+	const tailles = Object.assign({}, GODOT_CONFIG.fileSizes, window.SIRA_TAILLES || {});
+	const poids = window.SIRA_POIDS || {};
+	const suivi = {};
+	const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+	const note = document.getElementById('sira-note');
+	const texte = document.getElementById('sira-texte');
+	const plein = document.getElementById('sira-plein');
+	let lent = 0;
+	const debut = performance.now();
+
+	window.siraProgres = function () {
+		let recu = 0, total = 0;
+		Object.keys(GODOT_CONFIG.fileSizes).forEach(function (n) {
+			const p = poids[n] || tailles[n];
+			total += p;
+			if (suivi[n]) recu += p * Math.min(1, suivi[n].recu / tailles[n]);
+		});
+		return [recu, total];
+	};
+	/* UN seul chargement (yahya, 2026-11-19 : plus d'écran noir « La Mecque se construit… » après
+	 * Godot). Cette page reste affichée jusqu'à ce que le jeu soit prêt : téléchargement = 0 à 80 %
+	 * de la barre, puis le jeu (scripts/chapitre1.gd, _page_chargement) envoie sa construction,
+	 * 80 à 100 %. Le jeu la rappelle plus tard s'il doit encore attendre (reprise en ville). -1 = cacher. */
+	let jeu = null, premier = true, cache = null;
+	window.siraChargement = function (pct, txt) {
+		const st = document.getElementById('status');
+		if (!st) return;
+		clearTimeout(cache);
+		if (pct < 0) {
+			window.siraBoiteNote('pret');
+			jeu = null;
+			premier = false;
+			st.style.transition = 'opacity .45s ease';
+			st.style.opacity = '0';
+			st.style.pointerEvents = 'none';
+			cache = setTimeout(function () { st.style.display = 'none'; }, 480);
+			return;
+		}
+		jeu = pct;
+		st.style.display = 'flex';
+		st.style.opacity = '1';
+		st.style.pointerEvents = 'auto';
+		plein.style.width = (premier ? 80 + 0.2 * pct : pct).toFixed(1) + '%';
+		texte.textContent = txt || 'Préparation…';
+		note.textContent = '';
+	};
+	window.siraChargementVu = function () { return jeu !== null || !premier; };
+	function afficher() {
+		if (!texte.isConnected || jeu !== null || !premier || window.siraPauseOnglet) return;
+		const pr = window.siraProgres();
+		if (pr[1] <= 0) return;
+		plein.style.width = (80 * pr[0] / pr[1]).toFixed(1) + '%';
+		if (pr[0] >= pr[1]) {
+			texte.textContent = 'Démarrage du jeu…';
+			note.textContent = '';
+		} else {
+			texte.textContent = 'Téléchargement : ' + (pr[0] / 1e6).toFixed(0) + ' Mo sur ' + (pr[1] / 1e6).toFixed(0) + ' Mo';
+			note.textContent = Date.now() - lent < 6000 ? 'Connexion lente… je reprends là où ça s\'est arrêté.' : '';
+		}
+	}
+	setInterval(afficher, 250);
+
+	function solide(url, nom, signalDehors) {
+		const total = tailles[nom];
+		const wasm = /\.wasm$/.test(nom);
+		const st = suivi[nom] = { recu: 0, reprises: 0 };
+		let lecteur = null, ctrl = null, sauter = 0, fini = false;
+		if (signalDehors) signalDehors.addEventListener('abort', function () { fini = true; try { ctrl && ctrl.abort(); } catch (e) { /* rien */ } });
+
+		async function ouvrir() {
+			for (let essai = 0; !fini; essai++) {
+				ctrl = new AbortController();
+				const garde = setTimeout(function () { ctrl.abort(); }, 25000);
+				try {
+					const h = {};
+					// Reprise par morceau. Le .wasm voyage compressé (10 Mo au lieu de 40) et une
+					// reprise par morceau le ferait venir non compressé : on ne le fait que pour la fin.
+					if (st.recu > 0 && (!wasm || total - st.recu < 8e6)) h.Range = 'bytes=' + st.recu + '-';
+					const r = await vraiFetch(url, { headers: h, signal: ctrl.signal, cache: essai > 1 ? 'no-store' : 'default' });
+					clearTimeout(garde);
+					if (r.status === 404 || r.status === 410) {
+						// Fichier remplacé par une publication plus récente : on recharge la page (une fois).
+						let deja = 0;
+						try { deja = +sessionStorage.getItem('sira404') || 0; sessionStorage.setItem('sira404', deja + 1); } catch (e) { /* rien */ }
+						if (deja < 2) { location.replace('./?v=' + Date.now() + (location.search.includes('atelier') ? '&atelier' : '')); await pause(60000); }
+						throw new Error('HTTP ' + r.status);
+					}
+					if (!r.ok) throw new Error('HTTP ' + r.status);
+					sauter = r.status === 206 ? 0 : st.recu;
+					lecteur = r.body.getReader();
+					return;
+				} catch (e) {
+					clearTimeout(garde);
+					if (fini) return;
+					console.warn('SIRA téléchargement ' + nom + ' : ' + e + ' (nouvel essai)');
+					lent = Date.now();
+					await pause(Math.min(800 * (essai + 1), 4000));
+				}
+			}
+		}
+		function lire() {
+			// Aucun octet pendant 15 s (25 s pour le .wasm) : la connexion est tombée, on coupe et on reprend.
+			return new Promise(function (ok, ko) {
+				const garde = setTimeout(function () { ko(new Error('plus rien ne vient')); }, wasm ? 25000 : 15000);
+				lecteur.read().then(function (x) { clearTimeout(garde); ok(x); }, function (e) { clearTimeout(garde); ko(e); });
+			});
+		}
+		const flux = new ReadableStream({
+			async pull(c) {
+				while (!fini) {
+					if (!lecteur) await ouvrir();
+					if (fini) break;
+					try {
+						const x = await lire();
+						if (x.done) {
+							if (st.recu >= total) { fini = true; c.close(); return; }
+							throw new Error('fichier incomplet');
+						}
+						let v = x.value;
+						if (sauter > 0) {
+							const k = Math.min(sauter, v.length);
+							sauter -= k;
+							v = v.subarray(k);
+							if (!v.length) continue;
+						}
+						st.recu += v.length;
+						c.enqueue(v);
+						return;
+					} catch (e) {
+						if (fini) break;
+						console.warn('SIRA téléchargement ' + nom + ' interrompu à ' + st.recu + ' / ' + total + ' : ' + e);
+						try { ctrl.abort(); } catch (e2) { /* rien */ }
+						lecteur = null;
+						st.reprises++;
+						lent = Date.now();
+						await pause(500);
+					}
+				}
+				c.error(new DOMException('arrêté', 'AbortError'));
+			},
+			cancel() { fini = true; try { ctrl && ctrl.abort(); } catch (e) { /* rien */ } },
+		});
+		return new Response(flux, { status: 200, headers: { 'Content-Type': wasm ? 'application/wasm' : 'application/octet-stream', 'Content-Length': String(total) } });
+	}
+
+	/* Réserve du navigateur (Cache Storage) : le moteur et le paquet de départ, une fois reçus
+	 * en entier, y sont rangés sous leur nom. À la visite suivante ils en sortent sans réseau.
+	 * (Le 2e paquet est déjà gardé par le jeu dans user://, voir _paquet_ville.) */
+	const RESERVE = 'sira-fichiers-1';
+	const garder = {};
+	Object.keys(GODOT_CONFIG.fileSizes).forEach(function (n) { garder[n] = true; });
+	if (window.SIRA_CAMP) garder[window.SIRA_CAMP] = true;   // le campement, téléchargé juste après le départ
+	if (window.SIRA_CAMP_LEGER) garder[window.SIRA_CAMP_LEGER] = true;
+	const reserve = ('caches' in window) ? caches.open(RESERVE).catch(function () { return null; }) : Promise.resolve(null);
+	reserve.then(function (c) {
+		// Ménage : les fichiers des anciennes versions sortent de la réserve.
+		if (c) c.keys().then(function (ks) { ks.forEach(function (k) { if (!garder[decodeURIComponent(k.url.split('/').pop())]) c.delete(k); }); });
+	});
+	function depuisReserve(nom) {
+		if (!garder[nom]) return Promise.resolve(null);
+		return reserve.then(function (c) {
+			return c ? c.match(nom) : null;
+		}).then(function (r) {
+			if (!r || +r.headers.get('X-Sira-Taille') !== tailles[nom]) return null;
+			suivi[nom] = { recu: tailles[nom], reprises: 0, reserve: true };
+			console.log('SIRA ' + nom + ' : déjà dans le téléphone');
+			return r;
+		}).catch(function () { return null; });
+	}
+	function versReserve(nom, rep) {
+		// Copie du flux : une branche pour le moteur, l'autre rangée dans la réserve si elle est complète.
+		if (!garder[nom] || !rep.body || !rep.body.tee) return rep;
+		const deux = rep.body.tee();
+		const type = rep.headers.get('Content-Type');
+		new Response(deux[1]).blob().then(function (b) {
+			if (b.size !== tailles[nom]) return null;
+			return reserve.then(function (c) {
+				return c && c.put(nom, new Response(b, { headers: { 'Content-Type': type, 'Content-Length': String(b.size), 'X-Sira-Taille': String(b.size) } }));
+			});
+		}).catch(function (e) { console.warn('SIRA réserve ' + nom + ' : ' + e); });
+		return new Response(deux[0], { status: 200, headers: rep.headers });
+	}
+
+	/* Débit réellement mesuré pendant le départ (Mbit/s), 0 si tout venait de la réserve. */
+	window.siraDebit = function () {
+		let o = 0;
+		Object.keys(GODOT_CONFIG.fileSizes).forEach(function (n) { if (suivi[n] && !suivi[n].reserve) o += (poids[n] || tailles[n]) * Math.min(1, suivi[n].recu / tailles[n]); });
+		const s = (performance.now() - debut) / 1000;
+		return o > 2e6 && s > 1 ? o * 8 / 1e6 / s : 0;
+	};
+	window.siraSolide = true;
+	window.siraSuivi = function (nom) { return suivi[nom]; };
+	window.fetch = function (res, init) {
+		try {
+			const url = typeof res === 'string' ? res : (res && res.url) || '';
+			const nom = decodeURIComponent(url.split('?')[0].split('#')[0].split('/').pop());
+			if (tailles[nom] > 0 && /\.(wasm|pck)$/.test(nom) && typeof ReadableStream === 'function') {
+				return depuisReserve(nom).then(function (r) { return r || versReserve(nom, solide(url, nom, init && init.signal)); });
+			}
+		} catch (e) { /* téléchargement normal */ }
+		return vraiFetch(res, init);
+	};
+}());
+
+const engine = new Engine(GODOT_CONFIG);
+(function () {
+	const statut = document.getElementById('status');
+	function echec(err) {
+		console.error(err);
+		const msg = (err && err.message) || String(err);
+		document.getElementById('sira-texte').textContent = 'Le jeu n\'a pas pu démarrer.';
+		document.getElementById('sira-note').textContent = msg + ' Touche l\'écran pour réessayer.';
+		statut.addEventListener('pointerdown', function () { location.reload(); });
+	}
+	const manque = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+	if (manque.length !== 0) {
+		echec(new Error('Ce navigateur ne peut pas lancer le jeu (' + manque.join(', ') + '). Ouvre le lien dans Chrome ou Safari.'));
+		return;
+	}
+	/* UN SEUL onglet du jeu à la fois (2026-11-21, PC de yahya : deux jeux ouverts = la carte
+	 * graphique et la mémoire partagées en deux, tout rame, même une page vide). Le dernier ouvert
+	 * gagne : les autres onglets s'arrêtent net (le moteur n'est plus chargé) et attendent un toucher. */
+	const ici = location.search.replace(/^\?/, '').split('&').filter(function (a) { return a && a !== 'pause'; });
+	const lienIci = location.pathname + (ici.length ? '?' + ici.join('&') : '') + location.hash;
+	if (/(^|[?&])pause(&|$)/.test(location.search)) {
+		window.siraPauseOnglet = true;
+		document.getElementById('sira-texte').textContent = 'Sira est ouvert dans un autre onglet.';
+		document.getElementById('sira-note').textContent = 'Touche l\'écran pour jouer ici.';
+		document.getElementById('sira-barre').style.display = 'none';
+		statut.addEventListener('pointerdown', function () { location.replace(lienIci); });
+		return;
+	}
+	try {
+		const canal = new BroadcastChannel('sira-un-seul-onglet');
+		const moi = String(Date.now()) + Math.random();
+		canal.onmessage = function (e) {
+			if (!e.data || e.data.ouvert === moi) return;
+			canal.close();
+			location.replace(lienIci.replace(/^([^?#]*)(\?[^#]*)?/, function (m, a, q) { return a + (q ? q + '&pause' : '?pause'); }));
+		};
+		canal.postMessage({ ouvert: moi });
+	} catch (e) { /* vieux navigateur : rien */ }
+	// Comme engine.startGame(), plus la tente du réveil déposée sous le nom « sira-tente.pck ».
+	const exe = GODOT_CONFIG.executable;
+	const pack = window.SIRA_PCK || (exe + '.pck');
+	const attente = [engine.init(exe), engine.preloadFile(pack, pack)];
+	if (window.SIRA_TENTE) attente.push(engine.preloadFile(window.SIRA_TENTE, 'sira-tente.pck'));
+	Promise.all(attente).then(function () {
+		campement();
+		return engine.start({ args: ['--main-pack', pack].concat(GODOT_CONFIG.args || []) });
+	}).then(function () {
+		// La page reste jusqu'à ce que le jeu dise qu'il est prêt (siraChargement(-1)). Filet : si le
+		// jeu ne l'a jamais appelée au bout de 20 s (autre scène), on la cache quand même.
+		setTimeout(function () { if (!window.siraChargementVu()) window.siraChargement(-1); }, 20000);
+	}, echec);
+
+	// Le campement : téléchargé dès que le départ est arrivé, pendant que le jeu démarre et que
+	// l'enfant se réveille sous la tente. Le jeu regarde window.siraCamp (chapitre1.gd, _paquet_camp).
+	/* Paquets légers (images deux fois plus petites) pour les appareils faibles et les connexions
+	 * lentes : choisis une fois par version des décors (sinon on téléchargerait les deux). */
+	function paquets() {
+		const a = window.siraAppareil || {};
+		if (!window.SIRA_CAMP_LEGER || !window.SIRA_VILLE_LEGER) return;
+		let leger = null;
+		try { const v = JSON.parse(localStorage.getItem('sira-paquets2') || 'null'); if (v && v.e === window.SIRA_CAMP) leger = !!v.leger; } catch (e) { /* rien */ }
+		if (leger === null) {
+			const d = window.siraDebit();
+			a.debit_mesure = +d.toFixed(1);
+			leger = (a.mem > 0 && a.mem <= 2) || a.eco || /2g|3g/.test(a.reseau) || (d > 0 && d < 2.5);
+		}
+		if (a.leger_force) leger = a.leger_force === '1';
+		try { localStorage.setItem('sira-paquets2', JSON.stringify({ e: window.SIRA_CAMP, leger: leger })); } catch (e) { /* rien */ }
+		a.leger = leger;
+		console.log('SIRA paquets ' + (leger ? 'légers' : 'normaux') + ' (débit mesuré ' + (a.debit_mesure || 0) + ' Mbit/s)');
+		if (leger) { window.SIRA_CAMP = window.SIRA_CAMP_LEGER; window.SIRA_VILLE = window.SIRA_VILLE_LEGER; }
+	}
+	function campement() {
+		paquets();
+		const nom = window.SIRA_CAMP;
+		if (!nom) return;
+		const d = window.siraCamp = { recu: 0, total: (window.SIRA_TAILLES || {})[nom] || 0, pret: false };
+		const suivre = setInterval(function () { const p = window.siraSuivi && window.siraSuivi(nom); if (p) d.recu = p.recu; }, 200);
+		(function essai(n) {
+			fetch(nom).then(function (r) {
+				if (!r.ok) throw new Error('HTTP ' + r.status);
+				return r.arrayBuffer();
+			}).then(function (buf) {
+				engine.copyToFS('sira-camp.pck', buf);
+				clearInterval(suivre);
+				d.recu = d.total;
+				d.pret = true;
+				console.log('SIRA campement arrivé (' + (buf.byteLength / 1e6).toFixed(0) + ' Mo)');
+			}).catch(function (e) {
+				console.warn('SIRA campement : ' + e + ' (nouvel essai)');
+				setTimeout(function () { essai(n + 1); }, Math.min(1000 * (n + 1), 8000));
+			});
+		}(0));
+	}
+}());
+		</script>
+	</body>
+</html>
+
